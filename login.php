@@ -14,7 +14,7 @@ include __DIR__ . '/includes/header.php';
 ?>
 
 <h1>Log in to InternConnect Buea</h1>
-<p class="meta">Select your portal below to sign in to your account.</p>
+<p class="meta">Select your portal below to sign in to your account.</p>    
 
 <div class="grid grid-2">
     <div class="card">
