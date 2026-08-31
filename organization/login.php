@@ -63,6 +63,10 @@ include __DIR__ . '/../includes/header.php';
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required>
         </div>
+        
+        <div style="margin-bottom: 15px; text-align: right;">
+            <a href="<?php echo BASE_URL; ?>/forgot-password.php" style="font-size: 0.9em;">Forgot Password?</a>
+        </div>
 
         <div class="form-group" style="margin-top:18px;">
             <button type="submit" class="btn btn-amber">Log In to Portal</button>
