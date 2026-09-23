@@ -1,0 +1,394 @@
+@startuml InternConnect_Buea_Complete_Sequence_Diagrams
+autonumber
+skinparam Style strictuml
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+
+' ============================================================================
+' GLOBAL ACTORS & PARTICIPANTS
+' ============================================================================
+actor "Student" as Student
+actor "Organization" as Org
+actor "Administrator" as Admin
+
+participant "Web Interface\n(HTML5/CSS3/JS)" as Client
+participant "PHP Backend\n(Logic / Controller)" as Backend
+database "MySQL Database\n(Database Engine)" as DB
+
+' ============================================================================
+' 1. STUDENT REGISTRATION AND LOGIN SEQUENCE
+' ============================================================================
+box "1. Student Registration & Login Sequence" #FFF5EE
+end box
+
+== 1.1 Student Registration ==
+Student -> Client: Enter registration information
+activate Client
+Client -> Backend: POST /register_student.php (name, email, password)
+activate Backend
+Backend -> DB: SELECT email FROM students WHERE email = ?
+activate DB
+DB --> Backend: Email lookup result
+deactivate DB
+
+alt Email already exists
+    Backend --> Client: Return error ("Email already registered")
+    Client --> Student: Display registration error
+else Email is unique
+    Backend -> DB: INSERT INTO students (name, email, password_hash) VALUES (...)
+    activate DB
+    DB --> Backend: Success / New Student ID
+    deactivate DB
+    Backend --> Client: Return registration success message
+    Client --> Student: Display success message & redirect to login
+end
+deactivate Backend
+deactivate Client
+
+== 1.2 Student Login ==
+Student -> Client: Enter login credentials (email, password)
+activate Client
+Client -> Backend: POST /login_student.php (email, password)
+activate Backend
+Backend -> DB: SELECT id, password_hash FROM students WHERE email = ?
+activate DB
+DB --> Backend: Student credentials record
+deactivate DB
+
+alt Invalid credentials
+    Backend --> Client: Return authentication error
+    Client --> Student: Display "Invalid email or password"
+else Credentials valid
+    Backend -> Backend: Initialize session (session_start)
+    Backend --> Client: Redirect to student_dashboard.php
+    Client --> Student: Render Student Dashboard
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 2. STUDENT PROFILE SEQUENCE
+' ============================================================================
+box "2. Student Profile Sequence" #F0F8FF
+end box
+
+== 2.1 View Profile ==
+Student -> Client: Access profile page
+activate Client
+Client -> Backend: GET /profile.php (session_id)
+activate Backend
+Backend -> DB: SELECT * FROM student_profiles WHERE student_id = ?
+activate DB
+DB --> Backend: Student profile record
+deactivate DB
+Backend --> Client: Render profile form with existing details
+Client --> Student: Display profile details
+deactivate Backend
+deactivate Client
+
+== 2.2 Create / Update Profile ==
+Student -> Client: Submit personal info, programme, level, location, skills, CV
+activate Client
+Client -> Backend: POST /update_profile.php (programme, level, location, skills, cv)
+activate Backend
+Backend -> DB: UPDATE student_profiles SET programme=?, level=?, location=?, skills=?, cv=? WHERE student_id=?
+activate DB
+DB --> Backend: Query update result
+deactivate DB
+
+alt Update Success
+    Backend --> Client: Return success status
+    Client --> Student: Display "Profile updated successfully"
+else Update Failure
+    Backend --> Client: Return database error
+    Client --> Student: Display "Failed to update profile"
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 3. SEARCH INTERNSHIP SEQUENCE
+' ============================================================================
+box "3. Search Internship Sequence" #F5F5DC
+end box
+
+Student -> Client: Enter keyword or select search filters
+activate Client
+Client -> Backend: GET /search.php (keyword, location, category)
+activate Backend
+Backend -> DB: SELECT * FROM internships WHERE title LIKE ? AND location = ? AND active = 1
+activate DB
+DB --> Backend: Array of matching internship postings
+deactivate DB
+
+alt Matching internships found
+    Backend --> Client: Render list of matching internships
+    Client --> Student: Display search results grid
+else No matching internships
+    Backend --> Client: Return empty result set
+    Client --> Student: Display "No internships match your search criteria"
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 4. INTERNSHIP DETAILS AND ELIGIBILITY SEQUENCE
+' ============================================================================
+box "4. Internship Details & Eligibility Sequence" #F0FFF0
+end box
+
+Student -> Client: Select specific internship to view details
+activate Client
+Client -> Backend: GET /internship_details.php?id=X
+activate Backend
+Backend -> DB: SELECT * FROM internships WHERE id = X
+activate DB
+DB --> Backend: Internship requirements data
+deactivate DB
+
+Backend -> DB: SELECT * FROM student_profiles WHERE student_id = Y
+activate DB
+DB --> Backend: Student profile attributes
+deactivate DB
+
+Backend -> Backend: Compare requirements vs student attributes:\n- Required skills vs Student skills\n- Required level vs Student level\n- Required programme vs Student programme\n- Required location vs Student location
+
+alt All criteria met
+    Backend --> Client: Return details with Status = "Eligible"
+else Missing criteria
+    Backend -> Backend: Compile missing requirements list
+    Backend --> Client: Return details with Status = "Not Eligible" & Missing requirements
+end
+Client --> Student: Display internship details with eligibility breakdown
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 5. INTERNSHIP MATCH SCORE SEQUENCE
+' ============================================================================
+box "5. Internship Match Score Sequence" #FFF0F5
+end box
+
+Student -> Client: Open internship details view
+activate Client
+Client -> Backend: Request match score computation (internship_id, student_id)
+activate Backend
+Backend -> DB: Fetch internship criteria & student profile data
+activate DB
+DB --> Backend: Criteria dataset
+deactivate DB
+
+Backend -> Backend: Calculate Skills match component (50%)
+Backend -> Backend: Calculate Academic Level match component (25%)
+Backend -> Backend: Calculate Programme match component (15%)
+Backend -> Backend: Calculate Location match component (10%)
+Backend -> Backend: Aggregate components -> Total Match Score %
+
+Backend --> Client: Return calculated percentage & match label (e.g., "90% - Excellent Match")
+Client --> Student: Display Match Score badge on internship page
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 6. INTERNSHIP APPLICATION SEQUENCE
+' ============================================================================
+box "6. Internship Application Sequence" #FAF0E6
+end box
+
+Student -> Client: Enter cover message, select CV, click Submit
+activate Client
+Client -> Backend: POST /apply.php (internship_id, cover_message, cv_file)
+activate Backend
+Backend -> Backend: Validate required fields and submission files
+
+alt Input validation fails
+    Backend --> Client: Return submission error
+    Client --> Student: Display validation error message
+else Input validation succeeds
+    Backend -> DB: INSERT INTO applications (student_id, internship_id, cover_message, cv_path, status)\nVALUES (?, ?, ?, ?, 'Pending')
+    activate DB
+    DB --> Backend: Success / Application ID
+    deactivate DB
+    Backend --> Client: Return application confirmation
+    Client --> Student: Display "Application Submitted Successfully"
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 7. APPLICATION TRACKING SEQUENCE
+' ============================================================================
+box "7. Application Tracking Sequence" #E6E6FA
+end box
+
+Student -> Client: Navigate to "My Applications" page
+activate Client
+Client -> Backend: GET /my_applications.php (session_student_id)
+activate Backend
+Backend -> DB: SELECT a.id, i.title, o.org_name, a.applied_date, a.status\nFROM applications a\nJOIN internships i ON a.internship_id = i.id\nJOIN organizations o ON i.org_id = o.id\nWHERE a.student_id = ?
+activate DB
+DB --> Backend: Dataset of applications and current statuses
+deactivate DB
+
+Backend --> Client: Render applications tracking view
+Client --> Student: Display application history with status indicators\n(Pending, Under Review, Shortlisted, Accepted, Rejected)
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 8. ORGANIZATION REGISTRATION AND LOGIN SEQUENCE
+' ============================================================================
+box "8. Organization Registration & Login Sequence" #F5FFFA
+end box
+
+== 8.1 Organization Registration ==
+Org -> Client: Enter company registration details
+activate Client
+Client -> Backend: POST /register_org.php (org_name, email, password, address)
+activate Backend
+Backend -> DB: INSERT INTO organizations (org_name, email, password_hash, address)\nVALUES (...)
+activate DB
+DB --> Backend: Success / Organization ID
+deactivate DB
+Backend --> Client: Return registration confirmation
+Client --> Org: Display success message & redirect to login
+deactivate Backend
+deactivate Client
+
+== 8.2 Organization Login ==
+Org -> Client: Enter organization credentials (email, password)
+activate Client
+Client -> Backend: POST /login_org.php (email, password)
+activate Backend
+Backend -> DB: SELECT id, password_hash FROM organizations WHERE email = ?
+activate DB
+DB --> Backend: Organization account record
+deactivate DB
+
+alt Valid credentials
+    Backend -> Backend: Set session context ($_SESSION['org_id'])
+    Backend --> Client: Redirect to org_dashboard.php
+    Client --> Org: Display Organization Dashboard
+else Invalid credentials
+    Backend --> Client: Return login authentication failure
+    Client --> Org: Display error message
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 9. POST INTERNSHIP SEQUENCE
+' ============================================================================
+box "9. Post Internship Sequence" #FFEFD5
+end box
+
+Org -> Client: Enter title, description, category, location, duration,\ndeadline, required level, programme, skills, positions
+activate Client
+Client -> Backend: POST /post_internship.php (posting_data...)
+activate Backend
+Backend -> Backend: Validate required form parameters
+
+alt Validation failed
+    Backend --> Client: Return validation errors
+    Client --> Org: Highlight missing or invalid fields
+else Validation successful
+    Backend -> DB: INSERT INTO internships (org_id, title, description, category, location,\nduration, deadline, academic_level, programme, skills, positions)\nVALUES (...)
+    activate DB
+    DB --> Backend: Success / Internship ID
+    deactivate DB
+    Backend --> Client: Return creation success message
+    Client --> Org: Display "Internship Posted Successfully" & update listings
+end
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 10. ORGANIZATION APPLICATION REVIEW SEQUENCE
+' ============================================================================
+box "10. Organization Application Review Sequence" #E0FFFF
+end box
+
+Org -> Client: Click "View Applications" for an internship listing
+activate Client
+Client -> Backend: GET /view_applications.php?internship_id=X
+activate Backend
+Backend -> DB: SELECT a.id, a.cover_message, a.status, s.name, s.programme,\ns.level, s.location, s.skills, s.cv_path\nFROM applications a\nJOIN students s ON a.student_id = s.id\nWHERE a.internship_id = ?
+activate DB
+DB --> Backend: Applicant dataset (profiles, messages, CVs)
+deactivate DB
+
+Backend --> Client: Render applicant management portal
+Client --> Org: Display applicants list with student profiles, skills, academic info, cover messages, and CV links
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 11. UPDATE APPLICATION STATUS SEQUENCE
+' ============================================================================
+box "11. Update Application Status Sequence" #FFF8DC
+end box
+
+Org -> Client: Select applicant and pick new status\n(Under Review / Shortlisted / Accepted / Rejected)
+activate Client
+Client -> Backend: POST /update_status.php (application_id, new_status)
+activate Backend
+Backend -> DB: UPDATE applications SET status = ? WHERE id = ?
+activate DB
+DB --> Backend: Status update success confirmation
+deactivate DB
+
+Backend --> Client: Return updated application status
+Client --> Org: Display updated status badge on organization dashboard
+
+note over DB, Student: Note: The updated status is now persisted in MySQL\nand will reflect on the Student's tracking page upon query.
+deactivate Backend
+deactivate Client
+
+
+' ============================================================================
+' 12. ADMINISTRATOR SEQUENCE
+' ============================================================================
+box "12. Administrator Sequence" #F8F8FF
+end box
+
+== 12.1 Admin Login ==
+Admin -> Client: Enter admin credentials
+activate Client
+Client -> Backend: POST /admin_login.php (username, password)
+activate Backend
+Backend -> DB: SELECT id, password_hash FROM admins WHERE username = ?
+activate DB
+DB --> Backend: Admin user record
+deactivate DB
+Backend --> Client: Redirect to admin_dashboard.php
+Client --> Admin: Render Admin Dashboard UI
+deactivate Backend
+deactivate Client
+
+== 12.2 Administrative Control Operations ==
+Admin -> Client: Request management section\n(Manage Students / Manage Orgs / Manage Internships / Monitor Applications / System Stats)
+activate Client
+Client -> Backend: GET /admin_data.php (action_type)
+activate Backend
+
+Backend -> DB: Query entities & system stats\n(SELECT/COUNT from students, organizations, internships, applications)
+activate DB
+DB --> Backend: Requested entity records & metrics dataset
+deactivate DB
+
+Backend --> Client: Render admin management table & statistics view
+Client --> Admin: Display requested management interface & real-time statistics
+deactivate Backend
+deactivate Client
+
+@enduml
